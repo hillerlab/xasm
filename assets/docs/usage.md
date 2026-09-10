@@ -298,6 +298,23 @@ in one `input_dir` is supported — each sample is routed by its own extension.
 | `bqc_adapter_auto_detect` | `true` | `--auto-detect`: infer adapters from the data. Unlike fastp's detection, `bqc` *aborts the task* when the evidence is ambiguous (pooled libraries, concatenated runs). Turn off with `--bqc_adapter_auto_detect false` or pass explicit sequences below. |
 | `bqc_adapter_r1` / `bqc_adapter_r2` | – | Explicit adapter sequences per mate. |
 | `bqc_extra_args` | – | Extra arguments passed verbatim to `bqc workflow`. |
+| `infer_strandedness` | `true` | Infer each sample's RNA-seq strandedness from its raw `.cbq` before trimming (`bqc sniff strand`). The value (`forward`/`reverse`/`unstranded`) is written into the sample metadata and published as the last column of the run samplesheet. Requires CBQ at the trim point (`bqtools_encode_fastqs` or native `.cbq`); FASTQ/fastp and `bqtools_encode_before_alignment` samples stay `unstranded`. `undetermined` — bqc's answer when mapping evidence is below its gates — also falls back to `unstranded`. |
+| `strand_transcriptome` | – | Ready-made transcriptome FASTA for the strand index; skips the XLOCI CDS extraction step. |
+| `strand_salmon_index` | – | Ready-made Salmon 2.x index directory; skips both the CDS extraction and the index build. The `00_prepare/strand/bqc_salmon_index/` published by a previous run can be reused here. |
+
+> **Strandedness inference (CBQ path).** When CBQ reads exist before trimming,
+> xasm extracts the reference CDS transcriptome with `xloci`, builds one
+> reusable Salmon 2.x index with `bqc sniff index`, and runs `bqc sniff strand`
+> per sample in parallel with `BQC` trimming. The inferred strandedness flows
+> into the assemblers that consume it: `stringtie3` (`--fr`/`--rf`) and
+> `transmeta` (`-s`). **Aletsch is unaffected** — its third sample-info field is
+> the sequencing protocol, not strandedness, and it reads the `XS` tag STAR
+> already emits. Coverage tracks stay unstranded. The CDS FASTA, index and
+> per-sample reports are published under `00_prepare/strand/`.
+>
+> The `bqc` image must be built with the `sniff-strand` feature and be at least
+> v0.0.4 (which added `bqc sniff index`), i.e.
+> `cargo install bqc --features sniff-strand`.
 
 > Reads-after-trimming counts: `bqc` reports *records* (one paired record = both
 > mates) while `fastp` reports *reads*. xasm doubles the paired CBQ counts so
@@ -587,6 +604,9 @@ Everything lands under `output_dir` (default `./results`):
 results/
 ├── 00_prepare/
 │   ├── deacon_index/          built or downloaded Deacon index
+│   ├── strand/                strand inference support: reference CDS FASTA,
+│   │                          reusable Salmon index (bqc_salmon_index/) and
+│   │                          per-sample bqc sniff strand reports
 │   └── wget/                  downloaded index files
 ├── 01_deacon_filter/          decontaminated reads (*fastq, symlinks)
 ├── 02_star_index/             STAR genome index
@@ -652,6 +672,7 @@ of that sample, in order:
 | 7 | Percent of reads uniquely mapped by STAR |
 | 8 | Final BAM size (in 100 MB units) |
 | 9 | Number of transcripts assembled for that sample |
+| 10 | Inferred strandedness (`forward`/`reverse`/`unstranded`; see [4.6a](#46a-cbq-reads-bqtools--bqc)) |
 
 ---
 

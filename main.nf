@@ -102,6 +102,13 @@ if (params.help) {
                                                      for the aligner (ruSTAR only) [default: false]
         Native .cbq files in --input_dir are detected automatically and need neither flag.
 
+        --infer_strandedness               BOOLEAN   Infer each sample's strandedness from its raw CBQ
+                                                     before trimming (bqc sniff strand) [default: true]
+        --strand_transcriptome             PATH      Prebuilt transcriptome FASTA for the strand index;
+                                                     skips XLOCI CDS extraction [default: null]
+        --strand_salmon_index              PATH      Prebuilt Salmon 2.x index directory; skips CDS
+                                                     extraction + index build [default: null]
+
     Profiles:
         local       Run on local machine (default)
         slurm       Submit jobs to SLURM cluster
@@ -251,10 +258,11 @@ def validateRun() {
 
     // The input scan replaces the checkIfExists that the two read globs in
     // METASSEMBLE cannot use (a run legitimately supplies only one format).
+    def has_cbq = false
     if (params.input_dir) {
         def dir = file(params.input_dir)
         def has_fastq = dir.list().any { it ==~ /.*[12]\.f.*q\.gz$/ }
-        def has_cbq   = dir.list().any { it.endsWith('.cbq') }
+        has_cbq   = dir.list().any { it.endsWith('.cbq') }
 
         if (!has_fastq && !has_cbq) {
             errors << "  --input_dir '${params.input_dir}' contains no *{1,2}.f*q.gz or *.cbq reads"
@@ -265,6 +273,26 @@ def validateRun() {
         if (params.aligner == 'STAR' && params.bqtools_encode_before_alignment) {
             errors << "  --bqtools_encode_before_alignment requires --aligner ruSTAR (STAR cannot read CBQ; encoding just before STAR would be immediately decoded)"
         }
+    }
+
+    // Strandedness inference needs CBQ at the pre-trim point; a FASTQ-only run
+    // (fastp path) or encode_before_alignment has none and stays 'unstranded'.
+    if (params.infer_strandedness) {
+        if (!params.bqtools_encode_fastqs && !has_cbq) {
+            log.warn "[validateRun] --infer_strandedness: no CBQ reads at the trim point (fastp path); strandedness stays 'unstranded'. Enable with --bqtools_encode_fastqs or native .cbq inputs."
+        }
+        if (params.bqtools_encode_before_alignment) {
+            log.warn "[validateRun] --bqtools_encode_before_alignment encodes after trimming; those samples cannot be sniffed and stay 'unstranded'."
+        }
+    } else if (params.strand_salmon_index || params.strand_transcriptome) {
+        log.warn "[validateRun] --strand_salmon_index/--strand_transcriptome are ignored because --infer_strandedness is false"
+    }
+
+    if (params.strand_salmon_index && !file(params.strand_salmon_index).exists()) {
+        errors << "  --strand_salmon_index does not exist: '${params.strand_salmon_index}'"
+    }
+    if (params.strand_transcriptome && !file(params.strand_transcriptome).exists()) {
+        errors << "  --strand_transcriptome does not exist: '${params.strand_transcriptome}'"
     }
 
     errors += validateAnnevo()

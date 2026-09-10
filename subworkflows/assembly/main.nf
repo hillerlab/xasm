@@ -223,7 +223,14 @@ workflow ASSEMBLY {
                 ch_grouped_bams = ch_renamed_bams.bam
                     .map { meta, bam -> [meta.chr, meta.single_end, meta.strandedness, bam] }
                     .groupTuple()
-                    .map { chr, ses, strs, bams -> [ chr, ses.first(), strs.first(), bams ] }
+                    .map { chr, ses, strs, bams ->
+                        // transmeta takes one -s flag per chunk; a mixed chunk can only
+                        // honour the first sample's strandedness, so surface it.
+                        if (strs.unique().size() > 1) {
+                            log.warn "[ASSEMBLY] ${chr}: mixed strandedness ${strs.unique()} in one transmeta chunk; using '${strs.first()}'"
+                        }
+                        [ chr, ses.first(), strs.first(), bams ]
+                    }
 
                 // INFO: map each bam name back to its sample id to aggregate transmeta counts
                 ch_name_map = ch_renamed_bams.bam
@@ -269,7 +276,13 @@ workflow ASSEMBLY {
                 ch_grouped_bams = ch_renamed_bams.bam
                     .map { meta, bam -> [ 'metassembly', meta, bam ] }
                     .groupTuple()
-                    .map { key, metas, bams -> [ null, metas.first().single_end, metas.first().strandedness, bams ] }
+                    .map { key, metas, bams ->
+                        def strands = metas.collect { it.strandedness }.unique()
+                        if (strands.size() > 1) {
+                            log.warn "[ASSEMBLY] mixed strandedness ${strands} in one transmeta chunk; using '${strands.first()}'"
+                        }
+                        [ null, metas.first().single_end, strands.first(), bams ]
+                    }
 
                 ch_name_map = ch_renamed_bams.bam
                     .map { meta, bam -> [

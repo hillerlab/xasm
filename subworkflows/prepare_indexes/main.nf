@@ -20,6 +20,9 @@ include { GXF2BED as GXF2BED_CONVERT_ANNOTATION } from '../../modules/custom/gxf
 include { GUNZIP as GUNZIP_FASTA } from '../../modules/custom/gunzip/main'
 include { GUNZIP as GUNZIP_GTF } from '../../modules/custom/gunzip/main'
 
+include { XLOCI_CDS as XLOCI_EXTRACT_CDS } from '../../modules/custom/xloci/cds/main'
+include { BQC_SNIFF_INDEX } from '../../modules/custom/bqc/sniff/index/main'
+
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -38,12 +41,15 @@ workflow PREPARE_INDEXES {
         index_path                          // val: path(deacon/index)
         download_index                      // val: boolean
         make_single_index                   // val: boolean
+        // --- strand inference support ---
+        build_strand_index                  // val: boolean
 
     main:
         ch_versions = Channel.empty()
 
         def genome_file = file(genome, checkIfExists: true)
         def genome_path = genome_file.toString()
+        def annotation_file = file(annotation, checkIfExists: true)
 
         ch_chrom_sizes = CHROMSIZE([[:], genome_file]).chromsize.map { it[1] }
 
@@ -112,6 +118,36 @@ workflow PREPARE_INDEXES {
         ch_versions = ch_versions.mix(PREPARE_GENOME_STAR.out.versions)
         ch_versions = ch_versions.mix(PREPARE_DEACON_INDEX.out.versions)
 
+        // INFO: strand inference support — XLOCI extracts the reference CDS
+        // transcriptome and bqc builds the reusable Salmon index from it once
+        // per run. A ready-made index (params.strand_salmon_index) skips both;
+        // a ready-made transcriptome (params.strand_transcriptome) skips XLOCI.
+        // Nothing is built when the run has no CBQ reads at the trim point.
+        ch_strand_index = Channel.empty()
+
+        if (build_strand_index) {
+            if (params.strand_salmon_index) {
+                def index = file(params.strand_salmon_index, checkIfExists: true)
+                ch_strand_index = Channel.value([[id: index.name], index])
+            } else {
+                def ch_transcriptome
+                if (params.strand_transcriptome) {
+                    def fasta = file(params.strand_transcriptome, checkIfExists: true)
+                    ch_transcriptome = Channel.value([[id: fasta.baseName], fasta])
+                } else {
+                    ch_transcriptome = XLOCI_EXTRACT_CDS(
+                        Channel.value([[id: annotation_file.baseName], annotation_file])
+                            .combine(ch_fasta)
+                            .map { meta, regions, genome -> [meta, genome, regions] }
+                    ).fasta
+                    ch_versions = ch_versions.mix(XLOCI_EXTRACT_CDS.out.versions)
+                }
+
+                ch_strand_index = BQC_SNIFF_INDEX(ch_transcriptome).index
+                ch_versions = ch_versions.mix(BQC_SNIFF_INDEX.out.versions)
+            }
+        }
+
     emit:
         genome          = ch_fasta
         star_index      = PREPARE_GENOME_STAR.out.star_index
@@ -119,5 +155,6 @@ workflow PREPARE_INDEXES {
         chrom_sizes     = ch_chrom_sizes
         annotation_gtf  = ch_gtf
         annotation_bed  = ch_bed
+        strand_index    = ch_strand_index
         versions        = ch_versions
 }

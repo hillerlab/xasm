@@ -40,6 +40,9 @@
     "bqc_min_length":                  15,
     "bqc_quality_tail":                15,
     "bqc_adapter_auto_detect":         true,
+    "infer_strandedness":              true,
+    "strand_transcriptome":            null,
+    "strand_salmon_index":             null,
 
     "//5": "── Assembly [optional] ──────────────────────────────────",
     "skip_assembly":  false,

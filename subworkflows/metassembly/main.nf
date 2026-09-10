@@ -19,6 +19,7 @@ include { ASSEMBLY } from '../assembly/main'
 include { BQTOOLS_ENCODE as BQTOOLS_ENCODE_INPUT } from '../../modules/custom/bqtools/encode/main'
 include { BQTOOLS_ENCODE as BQTOOLS_ENCODE_ALIGN } from '../../modules/custom/bqtools/encode/main'
 include { BQTOOLS_DECODE } from '../../modules/custom/bqtools/decode/main'
+include { BQC_SNIFF_STRAND } from '../../modules/custom/bqc/sniff/strand/main'
 
 include { GTF_REMOVE_DIRT } from '../../modules/custom/gtf/clean/main'
 include { GXF2BED } from '../../modules/custom/gxf2bed/main'
@@ -59,6 +60,12 @@ workflow METASSEMBLE {
         ch_start_index = Channel.empty()
         ch_deacon_index = Channel.empty()
 
+        // Strandedness inference runs on CBQ before trimming, so it only has an
+        // input when the encode step or native .cbq files provide one. fastp-only
+        // and encode_before_alignment runs keep the hardcoded 'unstranded'.
+        def has_cbq_input = params.bqtools_encode_fastqs || file(input_dir).list().any { it.endsWith('.cbq') }
+        def build_strand_index = params.infer_strandedness && has_cbq_input
+
         GENEPRED_LINT(
           Channel.value(file(annotation, checkIfExists: true))
           .map { it -> [ [ id: it.baseName ], it ] }
@@ -72,6 +79,7 @@ workflow METASSEMBLE {
             deacon_index_path,
             deacon_download_index,
             deacon_make_single_index,
+            build_strand_index,
         )
 
         // NOTE: checkIfExists is off on both globs because a run legitimately supplies
@@ -126,6 +134,33 @@ workflow METASSEMBLE {
                 .mix(ch_fastqs.filter { _meta, reads -> isCbq(reads) })
         } else {
             ch_reads = ch_fastqs
+        }
+
+        // INFO: infer per-sample strandedness on the raw CBQ, in parallel with
+        // BQC trimming. The inferred value replaces the hardcoded 'unstranded'
+        // on the same meta map that enters PREPROCESS_READS, so every downstream
+        // channel and join keeps the [id, single_end, strandedness] key set.
+        if (build_strand_index) {
+            ch_cbq_reads = ch_reads.filter { _meta, reads -> isCbq(reads) }
+
+            ch_sniff_inputs = ch_cbq_reads.combine(
+                ch_indexes.strand_index.map { _meta, index -> index }
+            )
+
+            BQC_SNIFF_STRAND(ch_sniff_inputs)
+
+            ch_versions = ch_versions.mix(BQC_SNIFF_STRAND.out.versions.first())
+
+            ch_strandedness = BQC_SNIFF_STRAND.out.report
+                .map { meta, json -> [meta, parseStrandedness(meta.id, json)] }
+
+            ch_reads = ch_cbq_reads
+                .join(ch_strandedness, failOnMismatch: true)
+                .map { meta, reads, strandedness ->
+                    log.info "[METASSEMBLE] ${meta.id}: strandedness=${strandedness}"
+                    [meta + [strandedness: strandedness], reads]
+                }
+                .mix(ch_reads.filter { _meta, reads -> !isCbq(reads) })
         }
 
         ch_processed_reads = PREPROCESS_READS(
@@ -243,7 +278,7 @@ workflow METASSEMBLE {
 
                 def bam_size = (bam_size_bytes ?: 0) as long
 
-                "${meta.id},${fastq_1},${fastq_2},${reads_after_trim},${reads_after_trim_percent},${kept ?: ''},${pct ?: ''},${bam_size / 100000000},${assembled_count ?: ''}"
+                "${meta.id},${fastq_1},${fastq_2},${reads_after_trim},${reads_after_trim_percent},${kept ?: ''},${pct ?: ''},${bam_size / 100000000},${assembled_count ?: ''},${meta.strandedness}"
             }
             .collectFile(
               name: 'samplesheet.csv',
@@ -286,4 +321,29 @@ workflow METASSEMBLE {
 def isCbq(reads) {
     def first = reads instanceof List ? reads[0] : reads
     return first.name.endsWith('.cbq')
+}
+
+//
+// Function that reads the pipeline strandedness out of a bqc sniff strand report.
+//
+// bqc classifies as forward/reverse/unstranded/undetermined and exits 0 on all
+// four. The pipeline only understands the first three, so undetermined — and any
+// unexpected value — falls back to unstranded, which is also what a fastp-only
+// run gets. Stub runs never produce a real report.
+//
+def parseStrandedness(sampleId, json_file) {
+    if (workflow.stubRun) {
+        return 'unstranded'
+    }
+
+    def report = new groovy.json.JsonSlurper().parseText(json_file.text) as Map
+    def result = (report['result'] ?: [:]) as Map
+    def label = (result['strandedness'] ?: report['strandedness'] ?: '').toString().toLowerCase()
+
+    if (label in ['forward', 'reverse', 'unstranded']) {
+        return label
+    }
+
+    log.warn "[METASSEMBLE] ${sampleId}: bqc strandedness '${label ?: 'missing'}' -> unstranded"
+    return 'unstranded'
 }
