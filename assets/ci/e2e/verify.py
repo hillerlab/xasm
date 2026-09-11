@@ -93,7 +93,11 @@ def verify_profile(profile: str) -> None:
     samples: dict[str, list[str]] = {}
     with (output / "samplesheets/samplesheet.csv").open(newline="") as handle:
         for row in csv.reader(handle):
-            require(len(row) == 9, f"unexpected samplesheet row: {row}")
+            require(len(row) == 10, f"unexpected samplesheet row: {row}")
+            require(
+                row[9] in {"forward", "reverse", "unstranded"},
+                f"unexpected strandedness: {row}",
+            )
             samples[row[0]] = row
 
     task_counts = completed_tasks(output)

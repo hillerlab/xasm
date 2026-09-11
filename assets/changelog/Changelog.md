@@ -61,6 +61,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.12] - 2026-09-10
+
+### Added
+
+- Strandedness inference on the CBQ path. When CBQ reads exist before trimming (`bqtools_encode_fastqs` or native `.cbq`), `METASSEMBLE` forks them into `bqc sniff strand` in parallel with `BQC` trimming and writes the inferred `forward`/`reverse`/`unstranded` into each sample's `strandedness` metadata. The reference CDS transcriptome is extracted once with `xloci` (`XLOCI_EXTRACT_CDS`), turned into one reusable Salmon 2.x index by `bqc sniff index` (`BQC_SNIFF_INDEX`), and consumed per sample by `BQC_SNIFF_STRAND`; all three publish under `00_prepare/strand/`. `--strand_transcriptome` skips the extraction, `--strand_salmon_index` skips extraction + build, and `--infer_strandedness false` turns the branch off. Requires a `bqc` image built with `--features sniff-strand` and bqc >= v0.0.4.
+- The run samplesheet gained a tenth column, the per-sample strandedness (appended after `assembled_count`; previous columns unchanged).
+- `PREPARE_INDEXES` now emits a `strand_index` channel alongside `star_index`/`deacon_index`.
+
+### Changed
+
+- `STRINGTIE3` (`--fr`/`--rf`) and `TRANSMETA` (`-s`) now see inferred strandedness instead of the hardcoded `unstranded` for CBQ samples. `ASSEMBLY` warns when a transmeta chunk mixes orientations, since transmeta takes a single `-s` per chunk. ALETSCH is unchanged: its protocol field is not strandedness and it already consumes the `XS` tag STAR emits. `COVERAGE` stays unstranded by design.
+- FASTQ/fastp samples and `bqtools_encode_before_alignment` runs cannot be sniffed (no CBQ before trimming) and keep `unstranded`; `validateRun` warns once.
+- Version bumped to `0.1.12` in the pipeline manifest.
+
+---
+
 ## [0.1.11] - 2026-09-04
 
 ### Added
