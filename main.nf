@@ -52,7 +52,8 @@ if (params.help) {
     Optional parameters (common):
         --splice_scores_dir   PATH      Path to splicing scores dir 
         --repeats             PATH      Path to repeats.{bed/gff/gtf}
-        --from                STRING    Checkpoint to resume from [options: polish]
+        --from                STRING    Checkpoint to resume from [options: alignment, polish, bigbed]
+        --bam_dir             PATH      Directory of coordinate-sorted 2-pass BAMs [required if --from alignment]
         --polish_path         PATH      Path to polished assembly [required if --from polish]
         --do_twopass_polish   BOOLEAN   Re-review retention discards with --ignore-utr [default: false]
         --xorf_call_orfs      BOOLEAN   Run XORF ORF calling on first-pass HQ transcripts [default: false]
@@ -131,6 +132,8 @@ if (params.help) {
 */
 
 include { METASSEMBLE } from './subworkflows/metassembly/main'
+include { ASSEMBLY } from './subworkflows/assembly/main'
+include { SAMTOOLS_INDEX } from './modules/custom/samtools/index/main'
 include { POLISH } from './subworkflows/polish/main'
 include { ANNEVO_ANNOTATION } from './subworkflows/annevo/main'
 include { TIBERIUS_ANNOTATION } from './subworkflows/tiberius/main'
@@ -310,6 +313,35 @@ def validateFromPolishing() {
     if (!params.polish_path)   errors << "  --polish_path is required"
     if (!params.genome)      errors << "  --genome is required"
     if (!params.annotation)  errors << "  --annotation is required"
+
+    if (params.do_twopass_polish && !params.xorf_call_orfs) {
+        errors << "  --do_twopass_polish requires --xorf_call_orfs true (twopass needs ORF calls from XORF)"
+    }
+
+    errors += validateAnnevo()
+    errors += validateTiberius()
+    errors += validateXorf()
+
+    if (errors) {
+        log.error "Parameter validation failed:\n${errors.join('\n')}"
+        System.exit(1)
+    }
+}
+
+def validateFromAlignment() {
+    def errors = []
+    if (!params.bam_dir) {
+        errors << "  --bam_dir is required"
+    } else {
+        def dir = file(params.bam_dir)
+        if (!dir.exists() || !dir.isDirectory()) {
+            errors << "  --bam_dir does not exist or is not a directory: '${params.bam_dir}'"
+        } else if (!(dir.list() ?: []).any { it.endsWith('.bam') }) {
+            errors << "  --bam_dir '${params.bam_dir}' contains no *.bam files"
+        }
+    }
+    if (!params.genome)     errors << "  --genome is required"
+    if (!params.annotation) errors << "  --annotation is required"
 
     if (params.do_twopass_polish && !params.xorf_call_orfs) {
         errors << "  --do_twopass_polish requires --xorf_call_orfs true (twopass needs ORF calls from XORF)"
@@ -618,6 +650,160 @@ workflow FROM_BIGBED {
     )
 }
 
+// ── Checkpoint: start from 2-pass BAMs (skip QC, decontamination, alignment) ──
+workflow FROM_ALIGNMENT {
+    validateFromAlignment()
+
+    if (params.star_make_coverage) {
+        log.warn "[FROM_ALIGNMENT] --star_make_coverage is ignored; coverage needs the aligner's bedGraph, not these BAMs"
+    }
+
+    if (params.skip_assembly) {
+        log.warn "[FROM_ALIGNMENT] --skip_assembly: nothing downstream of the BAMs (no metassembly, so no polish or BigBed)"
+    } else {
+        def genome_file = file(params.genome, checkIfExists: true)
+        def genome_path = genome_file.toString()
+
+        ch_chrom_sizes = CHROMSIZE([[:], genome_file]).chromsize.map { it[1] }
+
+        if (genome_path.endsWith(".2bit")) {
+            ch_fasta = TWOBIT_TO_FA([[:], genome_file]).fasta.map { it[1] }
+        } else if (genome_path.endsWith(".gz")) {
+            ch_fasta = GUNZIP_FASTA([[:], genome_file]).gunzip.map { it[1] }
+        } else {
+            ch_fasta = Channel.value(genome_file)
+        }
+
+        if (params.annotation.endsWith('.gz') || params.annotation.endsWith('.gtf') || params.annotation.endsWith('.gff')) {
+            Channel.value(file(params.annotation, checkIfExists: true))
+                .map { it -> [ [ id: it.baseName ], it ] }
+                .set { ch_gtf }
+
+            if (params.annotation.endsWith('.gz')) {
+                GUNZIP_GTF(ch_gtf)
+                ch_gtf = GUNZIP_GTF.out.gunzip
+            }
+
+            GXF2BED(ch_gtf)
+            ch_bed = GXF2BED.out.bed
+        } else if (params.annotation.endsWith('.bed')) {
+            Channel.value(file(params.annotation, checkIfExists: true))
+                .map { it -> [ [ id: it.baseName ], it ] }
+                .set { ch_bed }
+
+            BED2GTF(
+                ch_bed,
+                Channel.of([[], []])
+            )
+            ch_gtf = BED2GTF.out.gtf
+        } else {
+            ch_gtf = Channel.of([:])
+            ch_bed = Channel.of([[], []])
+        }
+
+        def ready = []
+        def bare = []
+        def bam_dir = file(params.bam_dir)
+        bam_dir.list()
+            .findAll { it.endsWith('.bam') }
+            .each { name ->
+                def bam = file("${bam_dir}/${name}")
+                def id = name
+                    .replaceFirst(/\.Aligned\.sortedByCoord\.out\.bam$/, '')
+                    .replaceFirst(/\.bam$/, '')
+                // ponytail: paired + unstranded. Aletsch ignores strandedness (reads XS).
+                // StringTie/TransMeta stay unstranded; add a per-sample column when a run needs --rf/--fr or transmeta -s.
+                def meta = [ id: id, single_end: false, strandedness: 'unstranded' ]
+                def alongside = file("${bam}.bai")
+                def short_bai = file(bam.toString().replaceFirst(/\.bam$/, '.bai'))
+                def index = alongside.exists() ? alongside : (short_bai.exists() ? short_bai : null)
+                if (index) {
+                    ready << [ meta, bam, index ]
+                } else {
+                    bare << [ meta, bam ]
+                }
+            }
+
+        if (bare) {
+            SAMTOOLS_INDEX(Channel.fromList(bare))
+            ch_indexed = Channel.fromList(bare).join(SAMTOOLS_INDEX.out.bai)
+        } else {
+            ch_indexed = Channel.empty()
+        }
+        if (ready) {
+            ch_bams = Channel.fromList(ready).mix(ch_indexed)
+        } else {
+            ch_bams = ch_indexed
+        }
+
+        ANNEVO_ANNOTATION(ch_fasta)
+        TIBERIUS_ANNOTATION(ch_fasta)
+
+        ch_metassembly = ASSEMBLY(
+            ch_bams,
+            ch_gtf,
+            false
+        )
+
+        POLISH(
+            ch_metassembly.gtf.map { meta, gtf -> [ [ id: gtf.baseName ], gtf ] },
+            ch_fasta,
+            ch_bed,
+            ANNEVO_ANNOTATION.out.bed,
+            TIBERIUS_ANNOTATION.out.bed,
+            params.repeats,
+            params.splice_scores_dir,
+            params.do_twopass_polish,
+            params.prefix
+        )
+
+        if (!params.skip_bb_conversion) {
+            ch_autosql = params.autosql ? file(params.autosql, checkIfExists: true) : Channel.of([])
+
+            BEDTOBIGBED_HQ(
+                POLISH.out.hq,
+                ch_chrom_sizes,
+                ch_autosql
+            )
+            BEDTOBIGBED_RETENTION(
+                POLISH.out.retentions,
+                ch_chrom_sizes,
+                ch_autosql
+            )
+            BEDTOBIGBED_TRUNCATIONS(
+                POLISH.out.truncations,
+                ch_chrom_sizes,
+                ch_autosql
+            )
+            BEDTOBIGBED_STRONG_RTS(
+                POLISH.out.strong_rts,
+                ch_chrom_sizes,
+                ch_autosql
+            )
+            BEDTOBIGBED_WEAK_RTS(
+                POLISH.out.weak_rts,
+                ch_chrom_sizes,
+                ch_autosql
+            )
+            BEDTOBIGBED_ARTIFACTS(
+                POLISH.out.artifacts,
+                ch_chrom_sizes,
+                ch_autosql
+            )
+            BEDTOBIGBED_FUSIONS(
+                POLISH.out.fusions,
+                ch_chrom_sizes,
+                ch_autosql
+            )
+            BEDTOBIGBED_SCRAPS(
+                POLISH.out.scraps,
+                ch_chrom_sizes,
+                ch_autosql
+            )
+        }
+    }
+}
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     RUN MAIN WORKFLOW
@@ -629,7 +815,10 @@ workflow XASM {
         log.warn "--annevo_annotation is set — ignoring --annevo_predict"
     }
 
-    if (params.from == "polish") {
+    if (params.from == "alignment") {
+        log.info "Resuming from ${params.from} checkpoint — skipping QC, decontamination, and alignment"
+        FROM_ALIGNMENT()
+    } else if (params.from == "polish") {
         // ── Checkpoint: start from polishing step (skip metassembly) ─────────────────────
         log.info "Resuming from ${params.from} checkpoint — skipping meta-assembly"
         FROM_POLISHING()
@@ -637,8 +826,10 @@ workflow XASM {
         // ── Checkpoint: start from bigbed step (skip metassembly + polishing) ─────────────────────
         log.info "Resuming from ${params.from} checkpoint — skipping meta-assembly + polishing"
         FROM_BIGBED()
-    }
-    else {
+    } else if (params.from) {
+        log.error "Unknown --from '${params.from}'. Options: alignment, polish, bigbed"
+        System.exit(1)
+    } else {
         // ── Default: full pipeline ─────────────────────────────────────────────────
         log.info "Starting full pipeline!"
         FULL_RUN()

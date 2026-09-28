@@ -89,7 +89,8 @@ cat > "${run_dir}/params.json" <<EOF
     "splice_scores_dir":   ${splice_scores_dir},
     "repeats":             ${repeats},
 
-    "//1a": "── Checkpoint: start from polishing step (skip metassembly) ─────────────────────",
+    "//1a": "── Checkpoints (--from alignment|polish|bigbed) ─────────────────────────────────",
+    "bam_dir":             null,
     "polish_path":         null,
 
     "//1b": "── Checkpoint: start from bigbed step (skip metassembly + polishing) ─────────────────────",

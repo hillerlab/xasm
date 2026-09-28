@@ -249,7 +249,8 @@ workflow METASSEMBLE {
         if (!skip_assembly) {
           ch_metassembly = ASSEMBLY(
               ch_alignment.bams,
-              ch_indexes.annotation_gtf
+              ch_indexes.annotation_gtf,
+              true
           )
 
           ch_metassembly.gtf

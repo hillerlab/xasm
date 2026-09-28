@@ -177,7 +177,8 @@ are marked **\***.
 
 | Parameter | Default | What it does |
 |-----------|---------|--------------|
-| `from` | – | Resume from a checkpoint instead of the full pipeline. Options: `polish` or `bigbed`. See [section 7](#7-checkpoints-resuming-from-the-middle). |
+| `from` | – | Resume from a checkpoint instead of the full pipeline. Options: `alignment`, `polish`, or `bigbed`. See [section 7](#7-checkpoints-resuming-from-the-middle). |
+| `bam_dir` | – | Directory of coordinate-sorted 2-pass BAMs when `from = "alignment"`. |
 | `polish_path` | – | The metassembly GTF/BED to polish when `from = "polish"`. |
 | `all_bed_path` | – | Directory of final BEDs to convert to BigBed when `from = "bigbed"`. |
 
@@ -570,6 +571,18 @@ resource tiers) lives in `nextflow.config` under the `slurm` profile.
 
 The full pipeline is the expensive part (QC → alignment → assembly). If you
 already ran it once, you can re-run only the tail steps:
+
+**`--from alignment`** — start from coordinate-sorted 2-pass BAMs, skipping QC,
+decontamination, and alignment. Assembly, polishing, and BigBed still run
+(`skip_assembly` stops after the BAMs are checked).
+
+```
+nextflow run main.nf -params-file params.json -profile apptainer \
+    --from alignment --bam_dir /path/to/bams
+```
+
+Required: `bam_dir` (one `*.bam` per sample; a sibling `.bai` is reused), `genome`, `annotation`.
+The BAMs themselves are not deleted. Samples are treated as paired-end and `unstranded`.
 
 **`--from polish`** — start at the polishing step, skipping everything up to
 and including metassembly.

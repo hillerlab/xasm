@@ -61,6 +61,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.13] - 2026-09-28
+
+### Added
+
+- `--from alignment` reads a directory of coordinate-sorted 2-pass BAMs (`--bam_dir`) and runs assembly, metassembly, polishing, and BigBed. QC, decontamination, and alignment are skipped. A sibling `.bai` is reused; missing indexes are built. Input BAMs are not deleted.
+
+### Changed
+
+- Version bumped to `0.1.13` in the pipeline manifest.
+
+---
+
 ## [0.1.12] - 2026-09-10
 
 ### Added
