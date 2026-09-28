@@ -9,8 +9,9 @@
     "repeats":             null,
     "prefix":             null,
 
-    "//1a": "── Checkpoint: start from polishing step (skip metassembly) ─────────────────────",
+    "//1a": "── Checkpoints (--from alignment|polish|bigbed) ─────────────────────────────────",
     "from":                null,
+    "bam_dir":             null,
     "polish_path":         null,
 
     "//1b": "── Checkpoint: start from bigbed step (skip metassembly + polishing) ─────────────────────",

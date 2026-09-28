@@ -90,6 +90,7 @@ workflow ASSEMBLY {
     take:
         ch_bams // channel: [ val(meta), path(bam), path(bai) ]
         annotation_gtf // channel: [ val(meta), path(gtf) ]
+        delete_input_bams // val: boolean. false for --from alignment; REMOVE_BAMS follows symlinks and would delete those BAMs
 
     main:
         ch_versions = Channel.empty()
@@ -300,7 +301,7 @@ workflow ASSEMBLY {
         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         */
 
-        if (!params.aletsch_keep_bam && !params.star_make_coverage) {
+        if (delete_input_bams && !params.aletsch_keep_bam && !params.star_make_coverage) {
             // The full BAM is read by every LOCAL_ASSEMBLY task and by BAMSPLIT_CHROM, so
             // wait for the last local task before deleting it; a sibling rm can otherwise
             // race still-running consumers. Covers both the per-chr and per-sample
