@@ -61,6 +61,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.14] - 2026-09-30
+
+### Fixed
+
+- `STRINGTIE3` reports `LINE_COUNT=0` when a chromosome assembles no transcripts. The old `grep | wc` count exited 1 under `pipefail` and aborted the sample.
+
+### Changed
+
+- Version bumped to `0.1.14` in the pipeline manifest.
+
+---
+
 ## [0.1.13] - 2026-09-28
 
 ### Added
