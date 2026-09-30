@@ -47,7 +47,10 @@ process STRINGTIE3 {
         -p $task.cpus \\
         $args
 
-    LINE_COUNT=\$(grep -w 'transcript' ${prefix}.transcripts.gtf | wc -l)
+    # StringTie exits 0 and may leave no transcript rows. grep -w exits 1 in
+    # that case, and pipefail would fail the task. awk prints 0.
+    touch ${prefix}.transcripts.gtf
+    LINE_COUNT=\$(awk '\$3 == "transcript" { n++ } END { print n + 0 }' ${prefix}.transcripts.gtf)
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
