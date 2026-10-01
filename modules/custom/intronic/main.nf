@@ -1,6 +1,5 @@
 process INTRONIC {
     tag "$meta.id"
-    label 'process_high'
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
@@ -24,10 +23,15 @@ process INTRONIC {
     if [ ! -s "$introns" ]; then
         touch ${prefix}.meta.iic
     else
+        # xloci repeats a genomic intron once per isoform. -q loads every row,
+        # and iso-classify keeps one label per coordinate.
+        awk -F '\\t' 'NF && !seen[\$1]++' "$introns" > ${prefix}.unique.iic
+
         intronIC classify \\
-          -q $introns \\
+          -q ${prefix}.unique.iic \\
           -n ${prefix} \\
-          $args
+          $args \\
+          -p ${task.cpus}
 
         if ! compgen -G "*.meta.iic" > /dev/null; then
             touch ${prefix}.meta.iic
