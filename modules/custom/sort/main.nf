@@ -21,7 +21,8 @@ process SORT_BED {
     def args = task.ext.args ?: ''
     def prefix = task.ext.prefix ?: "${meta.id}"
     """
-    sort -k1,1 -k2,2n -k3,3n ${bed} > ${prefix}.sorted.bed
+    # bigtools compares chromosome names as raw bytes.
+    LC_ALL=C sort -k1,1 -k2,2n -k3,3n ${bed} > ${prefix}.sorted.bed
 
     if [[ ! -s ${prefix}.sorted.bed ]]; then
         rm ${prefix}.sorted.bed

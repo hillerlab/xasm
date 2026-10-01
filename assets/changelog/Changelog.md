@@ -61,6 +61,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.16] - 2026-10-01
+
+### Fixed
+
+- `BEDTOBIGBED_STRONG_RTS` failed with `File is not sorted` on the kept transcripts after the strong-read-through filter (`*.clean_no_retentions.striped.bed`). That bed, and the weak-read-through, artifact, and retention beds, were filtered in place and never sorted again before `bigtools bedtobigbed`. `bigtools` 0.5.6 requires each chromosome in one contiguous block, ordered by raw byte name (`LC_ALL=C sort -k1,1 -k2,2n -k3,3n`). A locale sort can leave that check failing, and the parallel writer then reports `File is not sorted`. Those four categories are now sorted at the BigBed boundary, and every `SORT_BED` uses `LC_ALL=C`.
+- Version bumped to `0.1.16` in the pipeline manifest.
+
+---
+
 ## [0.1.15] - 2026-10-01
 
 ### Changed
