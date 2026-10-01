@@ -61,6 +61,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.15] - 2026-10-01
+
+### Changed
+
+- `IIC_PREDICT_SPLICEOSOME` classifies one row per genomic intron. `xloci` repeats the same `chr:start-end(strand)` once per isoform, and `intronIC classify -q` loaded every copy. `iso-classify` already keeps a single U2/U12 label per coordinate, so the extra rows only grew memory and runtime. The species-level U12 gate now counts each intron once. Scoring uses `-p` set to the task CPUs. The process leaves `process_high` (12 CPUs, 72 GB, 16 h) for 4 CPUs, 48 GB, and 8 h.
+- Version bumped to `0.1.15` in the pipeline manifest.
+
+---
+
 ## [0.1.14] - 2026-09-30
 
 ### Fixed
