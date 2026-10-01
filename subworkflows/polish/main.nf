@@ -42,6 +42,10 @@ include { SORT_BED as SORT_BED_TRUNCATIONS_XORF } from '../../modules/custom/sor
 include { SORT_BED as SORT_BED_XORF } from '../../modules/custom/sort/main'
 include { SORT_BED as SORT_BED_TOGA } from '../../modules/custom/sort/main'
 include { SORT_BED as SORT_BED_REFERENCE } from '../../modules/custom/sort/main'
+include { SORT_BED as SORT_BED_STRONG_RTS } from '../../modules/custom/sort/main'
+include { SORT_BED as SORT_BED_WEAK_RTS } from '../../modules/custom/sort/main'
+include { SORT_BED as SORT_BED_ARTIFACTS } from '../../modules/custom/sort/main'
+include { SORT_BED as SORT_BED_RETENTIONS } from '../../modules/custom/sort/main'
 include { XORF_RUN } from '../xorf/main'
 include { XORF_RUN as XORF_RUN_ON_TWOPASS_RETENTIONS } from '../xorf/main'
 
@@ -383,6 +387,12 @@ workflow POLISH {
             .map { meta, bed -> [ [ id: prefix + '_flnc' ], bed ] }
             .set { ch_fl_hq_transcripts }
 
+        // Strip keeps whatever order it was given. bigtools bedtobigbed
+        // requires one contiguous run per chromosome, in raw byte order.
+        SORT_BED_STRONG_RTS(STRIP_STRONG_RTS.out.hq)
+        SORT_BED_WEAK_RTS(STRIP_WEAK_RTS.out.hq)
+        SORT_BED_ARTIFACTS(STRIP_ARTIFACTS.out.hq)
+
         ch_xorf_hq = Channel.empty()
         if (params.xorf_call_orfs) {
             XORF_RUN(
@@ -466,6 +476,8 @@ workflow POLISH {
             ch_final_hq = ch_fl_hq_transcripts
         }
 
+        SORT_BED_RETENTIONS(ch_final_retentions)
+
         // Guard NMD input: fail fast instead of silently publishing nothing
         // Skip in stubRun where dummy channels may be empty.
         ch_final_hq_guarded = workflow.stubRun ?
@@ -499,15 +511,19 @@ workflow POLISH {
             .mix(ISOTOOLS_NMD.out.versions)
             .mix(SORT_BED_FINAL.out.versions)
             .mix(SORT_BED_NMD.out.versions)
+            .mix(SORT_BED_STRONG_RTS.out.versions)
+            .mix(SORT_BED_WEAK_RTS.out.versions)
+            .mix(SORT_BED_ARTIFACTS.out.versions)
+            .mix(SORT_BED_RETENTIONS.out.versions)
             .mix(RENAME_FINAL_TRANSCRIPTS.out.versions)
 
     emit:
         hq             = ch_final_hq
         truncations    = ch_final_truncations
-        retentions     = ch_final_retentions
-        strong_rts     = STRIP_STRONG_RTS.out.hq
-        weak_rts       = STRIP_WEAK_RTS.out.hq
-        artifacts      = STRIP_ARTIFACTS.out.hq
+        retentions     = SORT_BED_RETENTIONS.out.sorted
+        strong_rts     = SORT_BED_STRONG_RTS.out.sorted
+        weak_rts       = SORT_BED_WEAK_RTS.out.sorted
+        artifacts      = SORT_BED_ARTIFACTS.out.sorted
         introns        = ISOTOOLS_CLASSIFY_INTRON.out.tsv
         scraps         = SORT_BED_SCRAPS.out.sorted
         fusions        = SORT_BED_FUSIONS.out.sorted
