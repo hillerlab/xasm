@@ -61,6 +61,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.17] - 2026-10-05
+
+### Fixed
+
+- `BEDTOBIGBED` still failed with `File is not sorted` after the beds were sorted. `bigtools` 0.5.6 enables a parallel chromosome reader for inputs of at least 200 MB. That reader binary-searches for chromosome boundaries, skips a short chromosome between two long ones, and then reports the file as unsorted. The writer thread panics with `Couldn't send section`. Conversion now passes `-p no`, which reads chromosomes in order.
+- Version bumped to `0.1.17` in the pipeline manifest.
+
+---
+
 ## [0.1.16] - 2026-10-01
 
 ### Fixed
