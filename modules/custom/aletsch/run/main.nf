@@ -69,8 +69,15 @@ process ALETSCH {
         $chromosome \\
         $args
 
-    # Move output to current directory
-    mv ${prefix}_gtf/${prefix}.gtf ${prefix}.gtf
+    # Move output to current directory (Aletsch can exit 0 without writing a GTF
+    # on chromosomes with (almost) no signal; keep an empty GTF flowing so
+    # RENAME/BEAVER see LINE_COUNT=0 instead of failing on a missing file)
+    if [ -f "${prefix}_gtf/${prefix}.gtf" ]; then
+        mv ${prefix}_gtf/${prefix}.gtf ${prefix}.gtf
+    else
+        echo "[WARN] ${meta.id}: aletsch produced no ${prefix}.gtf; emitting empty GTF" >&2
+        touch ${prefix}.gtf
+    fi
     mv ${prefix}_profile ${prefix}.profile
 
     LINE_COUNT=\$(awk '\$3 == "transcript" { n++ } END { print n + 0 }' ${prefix}.gtf)
