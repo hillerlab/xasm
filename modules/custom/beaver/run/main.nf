@@ -34,15 +34,28 @@ process BEAVER {
     # no transcripts (Aletsch assembled nothing) must skip beaver rather than die
     # on the unconditional mv below.
     if awk -F'\\t' '\$3 == "transcript" { f = 1 } END { exit !f }' ${gtfs}; then
-        # Run Beaver
+        # Run Beaver (a non-zero exit still fails the task; only exit-0 with
+        # missing outputs is tolerated below)
         beaver \\
             ${prefix}.gtf_list.txt \\
             ${prefix} \\
             -t ${task.cpus} \\
             $args
 
-        mv ${prefix}.gtf beaver_output/
-        mv ${prefix}_feature.csv beaver_output/
+        # Beaver can exit 0 yet emit nothing on sparse contigs (e.g. chrUn
+        # scaffolds where every candidate is filtered). Only move what exists;
+        # both outputs are optional:true so an empty beaver_output simply means
+        # "no metassembly for this chromosome" downstream.
+        if [ -f "${prefix}.gtf" ]; then
+            mv ${prefix}.gtf beaver_output/
+        else
+            echo "[WARN] ${meta.id}: beaver produced no ${prefix}.gtf (all candidates filtered?); skipping" >&2
+        fi
+        if [ -f "${prefix}_feature.csv" ]; then
+            mv ${prefix}_feature.csv beaver_output/
+        else
+            echo "[WARN] ${meta.id}: beaver produced no ${prefix}_feature.csv; skipping" >&2
+        fi
     else
         echo "[WARN] ${meta.id}: no assembled transcripts in input (likely too few reads on this chromosome); skipping beaver" >&2
     fi
