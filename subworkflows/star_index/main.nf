@@ -50,7 +50,7 @@ workflow PREPARE_GENOME_STAR {
             } else {
                  ch_star_index = STAR_GENOMEGENERATE(
                     ch_fasta.map { [[:], it] },
-                    Channel.of([:])
+                    Channel.of([[], []])
                 ).index.map { it[1] }
             }
 
