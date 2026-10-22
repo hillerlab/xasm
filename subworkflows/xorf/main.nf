@@ -169,9 +169,14 @@ workflow XORF_RUN {
             ch_esm_weights,
             params.xorf_predict_keep_raw,
             params.xorf_selenocysteine_sites,                          
+            // Keep this positional order in sync with modules/xorf/src/subworkflows/xorf/main.nf.
+            // v0.1.2 added skip_transaid after skip_netstart and strip_truncations after
+            // do_polishing; v0.2.0 keeps the same 19-input signature.
             params.xorf_skip_netstart,
+            params.xorf_skip_transaid,
             params.xorf_rename_deactivate,
             params.xorf_do_polishing,
+            params.xorf_strip_truncations,
             params.xorf_skip_joined_concat,
             false, null, null,             // run_only_on / run_only_mode / run_only_target — masking not ported
             ch_database_versions.mix(ch_esm_versions)
