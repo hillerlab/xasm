@@ -61,6 +61,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.18] - 2026-10-23
+
+### Fixed
+
+- `BEDTOBIGBED_STRONG_RTS`, `BEDTOBIGBED_WEAK_RTS` and `BEDTOBIGBED_ARTIFACTS` converted the transcripts each filter kept (`STRIP_*.out.hq`), not the ones it removed. On HLangAng1 liver, `<prefix>_no_retentions.bb` held 212,189 transcripts, while `10_final/strong_rts` holds 11,960. They now convert `STRIP_*.out.discard`, the same transcripts as `10_final/strong_rts`, `weak_rts` and `artifacts`.
+
+### Changed
+
+- BigBeds are named by class: `<prefix>.flnc.bb`, `.truncations.bb`, `.retentions.bb`, `.strong_rts.bb`, `.weak_rts.bb`, `.artifacts.bb`, `.nmd.bb`, `.fusions.bb` and `.scraps.bb`. Before, each took its channel id, which gave `<prefix>_flnc@<prefix>_flnc.discard.bb` for the truncations, `<prefix>.discard.bb` for the retentions and `<prefix>.bb` for the fusions. Without `--prefix`, the channel id stays as the stem.
+- Version bumped to `0.1.18` in the pipeline manifest.
+
+### Added
+
+- `BEDTOBIGBED_NMD` converts the NMD-positive transcripts (`10_final/nmd`) to `<prefix>.nmd.bb`, in `FULL_RUN`, `--from polish` and `--from alignment`. `POLISH` now emits the sorted NMD bed. A run without NMD hits writes no NMD BigBed.
+
+---
+
 ## [0.1.17] - 2026-10-05
 
 ### Fixed

@@ -155,6 +155,7 @@ include { BEDTOBIGBED as BEDTOBIGBED_WEAK_RTS } from './modules/custom/bigtools/
 include { BEDTOBIGBED as BEDTOBIGBED_ARTIFACTS } from './modules/custom/bigtools/bedtobigbed/main'
 include { BEDTOBIGBED as BEDTOBIGBED_FUSIONS } from './modules/custom/bigtools/bedtobigbed/main'
 include { BEDTOBIGBED as BEDTOBIGBED_SCRAPS } from './modules/custom/bigtools/bedtobigbed/main'
+include { BEDTOBIGBED as BEDTOBIGBED_NMD } from './modules/custom/bigtools/bedtobigbed/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -494,6 +495,11 @@ workflow FULL_RUN {
             METASSEMBLE.out.chrom_sizes,
             ch_autosql
         )
+        BEDTOBIGBED_NMD(
+            POLISH.out.nmd,
+            METASSEMBLE.out.chrom_sizes,
+            ch_autosql
+        )
     }
 
     PIPELINE_COMPLETION (
@@ -621,6 +627,11 @@ workflow FROM_POLISHING {
         )
         BEDTOBIGBED_SCRAPS(
             POLISH.out.scraps,
+            ch_chrom_sizes,
+            ch_autosql
+        )
+        BEDTOBIGBED_NMD(
+            POLISH.out.nmd,
             ch_chrom_sizes,
             ch_autosql
         )
@@ -797,6 +808,11 @@ workflow FROM_ALIGNMENT {
             )
             BEDTOBIGBED_SCRAPS(
                 POLISH.out.scraps,
+                ch_chrom_sizes,
+                ch_autosql
+            )
+            BEDTOBIGBED_NMD(
+                POLISH.out.nmd,
                 ch_chrom_sizes,
                 ch_autosql
             )
