@@ -389,9 +389,10 @@ workflow POLISH {
 
         // Strip keeps whatever order it was given. bigtools bedtobigbed
         // requires one contiguous run per chromosome, in raw byte order.
-        SORT_BED_STRONG_RTS(STRIP_STRONG_RTS.out.hq)
-        SORT_BED_WEAK_RTS(STRIP_WEAK_RTS.out.hq)
-        SORT_BED_ARTIFACTS(STRIP_ARTIFACTS.out.hq)
+        // The tracks are what each step removes (the 10_final/<class> BEDs), not what it keeps.
+        SORT_BED_STRONG_RTS(STRIP_STRONG_RTS.out.discard)
+        SORT_BED_WEAK_RTS(STRIP_WEAK_RTS.out.discard)
+        SORT_BED_ARTIFACTS(STRIP_ARTIFACTS.out.discard)
 
         ch_xorf_hq = Channel.empty()
         if (params.xorf_call_orfs) {
@@ -527,6 +528,6 @@ workflow POLISH {
         introns        = ISOTOOLS_CLASSIFY_INTRON.out.tsv
         scraps         = SORT_BED_SCRAPS.out.sorted
         fusions        = SORT_BED_FUSIONS.out.sorted
-        nmd            = ISOTOOLS_NMD.out.nmd
+        nmd            = SORT_BED_NMD.out.sorted
         versions       = ch_versions
 }

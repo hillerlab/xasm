@@ -185,8 +185,16 @@ results/
 │   ├── nmd/                   NMD-positive transcripts (only when present)
 │   ├── scraps/                orphan/scrap transcripts
 │   └── fusions/               fusion transcripts
-├── 11_bbs/                    ← FINAL tracks (BigBed, if not skipped)
-│   └── <prefix>.bb            browser-ready versions of all 10_final BEDs
+├── 11_bbs/                    ← FINAL tracks (BigBed, if not skipped), one per 10_final class
+│   ├── <prefix>.flnc.bb       the polished, clean transcriptome
+│   ├── <prefix>.retentions.bb
+│   ├── <prefix>.strong_rts.bb
+│   ├── <prefix>.weak_rts.bb
+│   ├── <prefix>.artifacts.bb
+│   ├── <prefix>.truncations.bb (only when present)
+│   ├── <prefix>.nmd.bb        (only when present)
+│   ├── <prefix>.scraps.bb
+│   └── <prefix>.fusions.bb
 ├── samplesheets/
 │   └── samplesheet.csv        one row per sample with QC stats
 └── pipeline_info/
