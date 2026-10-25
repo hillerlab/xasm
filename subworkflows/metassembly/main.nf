@@ -176,13 +176,14 @@ workflow METASSEMBLE {
                 .map { meta, reads, _ -> [meta, reads] }
 
         // Encode just before alignment: fastp and deacon still run on FASTQ and only the
-        // aligner input becomes CBQ. delete_input is true because the deacon FASTQs are
-        // work-dir intermediates that nothing downstream removes any more -- without it
-        // this path would raise peak disk instead of lowering it.
+        // aligner input becomes CBQ. The deacon FASTQs are work-dir intermediates that
+        // nothing downstream removes any more, so they are deleted (otherwise this path
+        // would raise peak disk instead of lowering it), unless the aligner keeps its input
+        // reads too (star_delete_fastq_after_alignment = false, for -resume).
         if (params.bqtools_encode_before_alignment) {
             BQTOOLS_ENCODE_ALIGN(
                 ch_processed_reads.processed_reads.filter { _meta, reads -> !isCbq(reads) },
-                true
+                params.star_delete_fastq_after_alignment
             )
 
             ch_versions = ch_versions.mix(BQTOOLS_ENCODE_ALIGN.out.versions.first())
@@ -195,11 +196,12 @@ workflow METASSEMBLE {
 
         // STAR cannot read CBQ. Decode after deacon so bqc + deacon stay on CBQ
         // and only the aligner input becomes gzipped FASTQ.
-        // delete_input is true because the deacon .cbq is a work-dir intermediate.
+        // The deacon .cbq is a work-dir intermediate: deleted unless the aligner keeps
+        // its input reads too (star_delete_fastq_after_alignment = false, for -resume).
         if (params.aligner == 'STAR') {
             BQTOOLS_DECODE(
                 ch_aligner_reads.filter { _meta, reads -> isCbq(reads) },
-                true
+                params.star_delete_fastq_after_alignment
             )
 
             ch_versions = ch_versions.mix(BQTOOLS_DECODE.out.versions)

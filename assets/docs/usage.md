@@ -259,9 +259,29 @@ greatly improves detection of novel splice sites.
 | `star_extra_align_args` | – | Any extra STAR arguments you want appended to the alignment command. |
 | `star_save_unaligned` | `false` | Reserved; declared but not consumed by any step. |
 | `star_keep_first_pass_bam` | `false` | Keep the BAM of the first alignment pass (extra disk; normally deleted). |
-| `star_delete_fastq_after_alignment` | `true` | Delete the aligned fastqs after the second pass to save disk. |
+| `star_delete_fastq_after_alignment` | `true` | Delete the aligner's input reads after the second pass to save disk, and the CBQ/FASTQ file they were converted from just before the aligner (`bqtools decode` for STAR, `bqtools_encode_before_alignment`). `false` keeps them. |
 | `star_twopass_junctions_file` | – | Path to a pre-curated junction file (STAR sjdb format, 4 columns). Providing one **skips the first pass** entirely and aligns once with your junctions. |
 | `star_make_coverage` | `true` | Produce coverage tracks (per-sample BigWig → merged BigWig in `05_coverage`). Disable to save time/disk if you do not need them. |
+
+**Disk or `-resume`.** To save disk, steps delete their inputs once their
+output is written: deacon deletes the trimmed reads, the conversion just before
+the aligner deletes deacon's output, the aligner deletes its input reads after
+the second pass, beaver deletes the per-sample GTFs, and the coverage steps
+delete the bedGraphs, the per-sample BigWigs and the merged `.wig`. These
+inputs are outputs of earlier tasks. After a failure, `nextflow run ... -resume`
+finds them gone and reruns those tasks and everything after them, i.e. from
+trimming on. To keep `-resume` working, keep them all:
+
+- `deacon_keep_fastp_fastq = true`
+- `star_delete_fastq_after_alignment = false`
+- `beaver_keep_aletsch_gtf = true`
+- `bigtools_keep_bedgraph = true`, `wigtools_keep_bigwig = true` and `wigtobigwig_keep_wig = true`
+- with `star_make_coverage = false`, also `aletsch_keep_bam = true`
+
+Every sample's trimmed and decontaminated reads then stay in the work directory
+until you remove it. Leaving out `bigtools_keep_bedgraph` is worse than a full
+rerun: the cached alignment has lost its bedGraph, so the resumed run silently
+skips coverage for that sample.
 
 ### 4.6a CBQ reads (bqtools + bqc)
 
@@ -291,7 +311,7 @@ in one `input_dir` is supported — each sample is routed by its own extension.
 | Parameter | Default | What it does |
 |-----------|---------|--------------|
 | `bqtools_encode_fastqs` | `false` | Encode FASTQ inputs to `.cbq` before QC. Your original files in `input_dir` are never deleted. |
-| `bqtools_encode_before_alignment` | `false` | Encode to `.cbq` after decontamination, just for the aligner (**ruSTAR only**). The intermediate deacon FASTQs **are** deleted (they are work-directory files, and nothing downstream removes them otherwise). |
+| `bqtools_encode_before_alignment` | `false` | Encode to `.cbq` after decontamination, just for the aligner (**ruSTAR only**). The intermediate deacon FASTQs **are** deleted (they are work-directory files, and nothing downstream removes them otherwise), unless `star_delete_fastq_after_alignment = false`. |
 | `bqc_min_length` | `15` | `--min-length`: reject reads shorter than this. Always sent — `bqc` refuses to run with no operation configured. |
 | `bqc_quality_tail` | `15` | `--quality-tail`: trim 3' bases until the trailing window reaches this Phred score. |
 | `bqc_poly_g` | `true` | `--poly-g`: trim G-rich 3' tails (two-colour chemistry). |

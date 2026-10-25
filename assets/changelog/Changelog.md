@@ -61,6 +61,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.19] - 2026-10-25
+
+### Fixed
+
+- `star_delete_fastq_after_alignment = false` had no effect. The STAR and ruSTAR subworkflows passed `params.star_delete_fastq_after_alignment ?: true`, and Groovy's `?:` turns `false` into `true`, so the second pass always deleted its input reads. The value is now passed as set.
+
+### Changed
+
+- With `star_delete_fastq_after_alignment = false`, the conversion just before the aligner also keeps its input, deacon's output: `BQTOOLS_DECODE` (STAR with CBQ reads) and `BQTOOLS_ENCODE_ALIGN` (`bqtools_encode_before_alignment`). Before, `-resume` after a failure could not reuse read preprocessing or alignment, because each step deletes its input, the output of an earlier task: resuming a failed 9-sample run (HLdesRot15A spleen) reran 19,153 of 19,177 tasks. With every keep switch on (usage, 4.6), a resumed `test-bqc-star` run reused all 61 tasks. The defaults still delete.
+- Usage: what each step deletes, and the switches `-resume` needs.
+- Version bumped to `0.1.19` in the pipeline manifest.
+
+---
+
 ## [0.1.18] - 2026-10-23
 
 ### Fixed
