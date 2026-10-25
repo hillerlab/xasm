@@ -108,7 +108,7 @@ workflow RUSTAR_ALIGNMENT {
                 params.star_seq_library ?: '',
                 params.star_machine_type ?: '',
                 true, // keep bam -> we need it for Aletsch
-                params.star_delete_fastq_after_alignment ?: true
+                params.star_delete_fastq_after_alignment
             )
         } else {
             ch_rustar_second_pass_out = RUSTAR_ALIGN_2PASS(
@@ -121,7 +121,7 @@ workflow RUSTAR_ALIGNMENT {
                 params.star_seq_library ?: '',
                 params.star_machine_type ?: '',
                 true, // keep bam -> we need it for Aletsch
-                params.star_delete_fastq_after_alignment ?: true
+                params.star_delete_fastq_after_alignment
             )
         }
 

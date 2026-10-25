@@ -107,7 +107,7 @@ workflow STAR_ALIGNMENT {
                 params.star_seq_library ?: '',
                 params.star_machine_type ?: '',
                 true, // keep bam -> we need it for Aletsch
-                params.star_delete_fastq_after_alignment ?: true
+                params.star_delete_fastq_after_alignment
             )
         } else {
             ch_star_second_pass_out = STAR_ALIGN_2PASS(
@@ -120,7 +120,7 @@ workflow STAR_ALIGNMENT {
                 params.star_seq_library ?: '',
                 params.star_machine_type ?: '',
                 true, // keep bam -> we need it for Aletsch
-                params.star_delete_fastq_after_alignment ?: true
+                params.star_delete_fastq_after_alignment
             )
         }
 
