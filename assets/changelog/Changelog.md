@@ -61,6 +61,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.20] - 2026-11-09
+
+### Fixed
+
+- `RNASAMBA` no longer moves its outputs. `orf samba` writes the stripped FASTA next to the staged input (`<basename>.tmp.strip.fa`) and the classification TSV under `<prefix>/samba/`; the module then moved both into `<prefix>`. On HLmyoMyot9A (spleen), the strip-FASTA `mv` returned `Device or resource busy` (`rename(2)` → `EBUSY`) after `orf samba` had exited 0, so the task failed and the `error()` guards in `POLISH` aborted the remaining 9,679 tasks. Both outputs are now declared where `orf` writes them, and only Nextflow's stage-out copies them. Nothing downstream depends on the old file names.
+- `RNASAMBA` retries up to three times if `orf` itself fails. `process_single` multiplies memory and time by `task.attempt`, so the retry block pins them at 1 CPU, 6 GB, and 4 h.
+- The `RNASAMBA` `stub` block now creates the declared outputs; it used to `touch ${prefix}` as a file and then glob below it.
+- `modules/xorf` bumped to `0.2.2`, which also brings the `0.2.1` scaffold-start `orf` fix and the pinned BLAST/TRANSLATION images.
+- Version bumped to `0.1.20` in the pipeline manifest.
+
+---
+
 ## [0.1.19] - 2026-10-25
 
 ### Fixed
